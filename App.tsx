@@ -31,24 +31,20 @@ const SOUNDS = {
   spin: 'https://assets.mixkit.co/active_storage/sfx/1495/1495-preview.mp3', // Clique mecânico de rotação
 };
 
-// Pre-loading audio objects for zero latency
-const audioCache: Record<string, HTMLAudioElement> = {
-  click: new Audio(SOUNDS.click),
-  milestone: new Audio(SOUNDS.milestone),
-  win: new Audio(SOUNDS.win),
-  spin: new Audio(SOUNDS.spin)
-};
+const PROJECTION_FALLBACK = `¡Gracias por esperar, ahora vamos a traerte el RESULTADO REAL!
+
+Nuestro sistema analiza CADA RESPUESTA tuya para entender si, DE HECHO, nuestro programa tiene sentido para ti. Estamos analizando CADA DETALLE para garantizar que eres la persona correcta para formar parte de nuestro equipo. ¡Mereces este autocuidado! Con enfoque y solo algunos minutos en casa, estos 21 días serán el punto de giro para conquistar el cuerpo que deseas. ¡Tu fuerza es inspiradora y eres plenamente capaz de transformar tu rutina en resultados reales!`;
 
 const playSFX = (soundKey: keyof typeof SOUNDS, volume = 0.4) => {
+  // Cria o áudio no momento do clique para respeitar políticas de autoplay mobile
+  const src = SOUNDS[soundKey];
+  if (!src) return;
   try {
-    const sound = audioCache[soundKey];
-    if (sound) {
-      const playback = sound.cloneNode() as HTMLAudioElement;
-      playback.volume = volume;
-      playback.play().catch(() => {
-        // Silently fail if blocked by browser
-      });
-    }
+    const playback = new Audio(src);
+    playback.volume = volume;
+    playback.play().catch(() => {
+      // Silently fail se o navegador bloquear
+    });
   } catch (e) {
     console.warn("Audio error", e);
   }
@@ -547,11 +543,10 @@ const App: React.FC = () => {
       return () => clearInterval(interval);
     }
     if (currentBlock.type === 'projection') {
-        setShowProjectionButton(false);
-        setPersonalizedMsg("");
+        setShowProjectionButton(true);
+        setPersonalizedMsg(PROJECTION_FALLBACK); // mostra já a mensagem final
         getPersonalizedAnalysis(answers).then((msg) => {
-          setPersonalizedMsg(msg);
-          setTimeout(() => setShowProjectionButton(true), 3000);
+          if (msg) setPersonalizedMsg(msg);
         });
         addVitalityPoints(500);
     }
@@ -893,12 +888,7 @@ const App: React.FC = () => {
                       href="https://pay.hotmart.com/O103512181Y"
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={(e) => {
-                        playSFX('click');
-                        try {
-                          window.open('https://pay.hotmart.com/O103512181Y', '_blank', 'noopener,noreferrer');
-                        } catch {}
-                      }}
+                      onClick={() => playSFX('click')}
                       className="group relative w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-pink-600 to-rose-500 p-1 shadow-[0_15px_35px_rgba(219,39,119,0.4)] transition-all duration-300 hover:scale-[1.03] active:scale-95 animate-pulse-slow text-center block"
                     >
                       {/* Shimmer Effect */}
