@@ -729,7 +729,7 @@ const App: React.FC = () => {
               </div>
 
               <p className="text-gray-700 leading-relaxed italic text-sm sm:text-base bg-pink-50/50 p-5 rounded-2xl border border-pink-100 whitespace-pre-wrap">
-                {personalizedMsg || "¡Espera, por favor! Estamos analizando tus respuestas..."}
+                {personalizedMsg || PROJECTION_FALLBACK}
               </p>
             </div>
             {showProjectionButton && (
