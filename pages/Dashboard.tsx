@@ -805,12 +805,17 @@ const Dashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {sessions.map((session, idx) => {
+                    {filteredSessions.map((session, idx) => {
                       return (
                         <tr key={session.sessionId} className="border-b border-gray-700 hover:bg-gray-700/50">
                           <td className="p-3 bg-gray-800/80 sticky left-0 z-10 border-r-2 border-gray-600">
                             <div className="flex items-center gap-2">
-                              <input type="checkbox" className="rounded" />
+                              <input
+                                type="checkbox"
+                                checked={selectedSessions.has(session.sessionId)}
+                                onChange={() => toggleSessionSelection(session.sessionId)}
+                                className="rounded"
+                              />
                               <div className="flex flex-col">
                                 <span className="font-semibold text-sm text-white">
                                   {new Date(session.firstSeen).toLocaleDateString('pt-BR')}
@@ -857,10 +862,12 @@ const Dashboard: React.FC = () => {
                         </tr>
                       );
                     })}
-                    {sessions.length === 0 && (
+                    {filteredSessions.length === 0 && (
                       <tr>
                         <td colSpan={FUNNEL_BLOCKS.length + 1} className="p-6 text-center text-gray-400">
-                          Nenhuma sessão registrada ainda. Complete algumas perguntas no quiz para ver os dados aqui.
+                          {sessions.length === 0 
+                            ? 'Nenhuma sessão registrada ainda. Complete algumas perguntas no quiz para ver os dados aqui.'
+                            : 'Nenhuma sessão encontrada com os filtros aplicados.'}
                         </td>
                       </tr>
                     )}
