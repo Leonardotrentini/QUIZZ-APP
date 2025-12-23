@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FUNNEL_BLOCKS } from '../content/funnelData';
+import { supabase } from '../services/supabaseClient';
 
 interface TrackingEvent {
   id: string;
@@ -40,12 +41,54 @@ const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const loadData = () => {
+  const loadData = async () => {
     try {
+      // Carrega do Supabase primeiro (dados de todos os usuários)
+      try {
+        const { data: supabaseEvents, error } = await supabase
+          .from('tracking_events')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(10000); // Limita a 10k eventos mais recentes
+
+        if (!error && supabaseEvents) {
+          // Converte formato do Supabase para formato local
+          const convertedEvents: TrackingEvent[] = supabaseEvents.map(e => ({
+            id: e.id,
+            eventType: e.event_type,
+            blockId: e.block_id,
+            blockType: e.block_type,
+            blockTitle: e.block_title,
+            answerId: e.answer_id,
+            answerText: e.answer_text,
+            progress: e.progress,
+            vitalityScore: e.vitality_score,
+            timestamp: e.timestamp,
+            sessionId: e.session_id,
+          }));
+
+          setEvents(convertedEvents);
+          processEvents(convertedEvents);
+          return; // Se conseguiu carregar do Supabase, não precisa do localStorage
+        }
+      } catch (supabaseError) {
+        console.warn('Erro ao carregar do Supabase, usando localStorage:', supabaseError);
+      }
+
+      // Fallback: carrega do localStorage (apenas dados locais)
       const storedEvents = localStorage.getItem('tracking_events');
       if (storedEvents) {
         const parsedEvents: TrackingEvent[] = JSON.parse(storedEvents);
         setEvents(parsedEvents);
+        processEvents(parsedEvents);
+      }
+    } catch (e) {
+      console.error('Erro ao carregar dados:', e);
+    }
+  };
+
+  const processEvents = (eventList: TrackingEvent[]) => {
+    try {
         
         // Agrupa eventos por sessão
         const sessionsMap = new Map<string, SessionData>();
@@ -96,10 +139,9 @@ const Dashboard: React.FC = () => {
           }
         });
         
-        setSessions(Array.from(sessionsMap.values()).sort((a, b) => b.lastSeen - a.lastSeen));
-      }
+      setSessions(Array.from(sessionsMap.values()).sort((a, b) => b.lastSeen - a.lastSeen));
     } catch (e) {
-      console.error('Erro ao carregar dados:', e);
+      console.error('Erro ao processar eventos:', e);
     }
   };
 

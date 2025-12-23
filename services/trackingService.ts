@@ -64,28 +64,42 @@ const storeEvent = (event: TrackingEvent) => {
   }
 };
 
-// Envia evento para backend (opcional - você pode criar um endpoint)
+// Envia evento para Supabase
+const trackToSupabase = async (event: TrackingEvent) => {
+  try {
+    const { supabase } = await import('./supabaseClient');
+    
+    const { error } = await supabase.from('tracking_events').insert({
+      event_type: event.eventType,
+      block_id: event.blockId,
+      block_type: event.blockType,
+      block_title: event.blockTitle || null,
+      answer_id: event.answerId ? String(event.answerId) : null,
+      answer_text: event.answerText || null,
+      progress: event.progress,
+      vitality_score: event.vitalityScore || null,
+      timestamp: event.timestamp,
+      session_id: event.sessionId,
+    });
+
+    if (error) {
+      console.warn('Erro ao enviar evento para Supabase:', error);
+    }
+  } catch (e) {
+    // Não interrompe o fluxo se o tracking falhar
+    console.warn('Erro ao conectar com Supabase:', e);
+  }
+};
+
+// Envia evento para backend (Supabase + localStorage)
 const trackToBackend = async (event: TrackingEvent) => {
   // Primeiro armazena localmente para o dashboard
   storeEvent(event);
   
-  try {
-    // Substitua pela URL do seu endpoint quando criar
-    // Use process.env em runtime ou configure variável de ambiente
-    const endpoint = (typeof window !== 'undefined' && (window as any).__TRACKING_ENDPOINT__) || '/api/track';
-    
-    // Só envia se o endpoint estiver configurado (comentado por padrão)
-    // Descomente e configure quando tiver seu backend pronto
-    // await fetch(endpoint, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(event),
-    //   keepalive: true,
-    // }).catch(() => {});
-  } catch (e) {
-    // Não interrompe o fluxo se o tracking falhar
-    // console.warn('Tracking error:', e);
-  }
+  // Envia para Supabase (não bloqueia se falhar)
+  trackToSupabase(event).catch(() => {
+    // Silently fail - não interrompe o fluxo
+  });
 };
 
 // Tracking principal - rastreia visualização de bloco
