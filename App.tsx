@@ -501,11 +501,6 @@ const App: React.FC = () => {
   const currentBlock = FUNNEL_BLOCKS[currentBlockIndex];
   const totalSteps = FUNNEL_BLOCKS.length;
 
-  // Dashboard - Verifica hash para renderizar dashboard (deve estar após hooks)
-  if (typeof window !== 'undefined' && window.location.hash === '#dashboard') {
-    return <Dashboard />;
-  }
-
   useEffect(() => { localStorage.setItem('funnel_image_adjustments', JSON.stringify(editorState)); }, [editorState]);
 
   // Tracking: Rastreia visualização de cada bloco
@@ -972,6 +967,11 @@ const App: React.FC = () => {
         return <div>Fin del Embudo</div>;
     }
   };
+
+  // Dashboard - Verifica hash para renderizar dashboard
+  if (typeof window !== 'undefined' && window.location.hash === '#dashboard') {
+    return <Dashboard />;
+  }
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10 relative">
