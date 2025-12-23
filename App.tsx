@@ -476,11 +476,30 @@ const PremiumRoulette: React.FC<{
 const App: React.FC = () => {
   // Dashboard - Verifica hash PRIMEIRO antes de qualquer estado
   // Aceita tanto #dashboard quanto #dasboard (typo comum)
-  if (typeof window !== 'undefined') {
-    const hash = window.location.hash.toLowerCase();
-    if (hash === '#dashboard' || hash === '#dasboard') {
-      return <Dashboard />;
+  const [showDashboard, setShowDashboard] = React.useState(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      return hash === '#dashboard' || hash === '#dasboard';
     }
+    return false;
+  });
+
+  // Monitora mudanças no hash
+  React.useEffect(() => {
+    const checkHash = () => {
+      if (typeof window !== 'undefined') {
+        const hash = window.location.hash.toLowerCase();
+        setShowDashboard(hash === '#dashboard' || hash === '#dasboard');
+      }
+    };
+
+    checkHash();
+    window.addEventListener('hashchange', checkHash);
+    return () => window.removeEventListener('hashchange', checkHash);
+  }, []);
+
+  if (showDashboard) {
+    return <Dashboard />;
   }
 
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
