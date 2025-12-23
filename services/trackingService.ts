@@ -12,6 +12,16 @@ interface TrackingEvent {
   timestamp: number;
   sessionId: string;
   userAgent?: string;
+  // Novos campos para rastreamento
+  ipAddress?: string;
+  country?: string;
+  city?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmTerm?: string;
+  utmContent?: string;
+  referrer?: string;
 }
 
 // Gera um ID único para a sessão
@@ -24,6 +34,67 @@ const getSessionId = (): string => {
 };
 
 const sessionId = getSessionId();
+
+// Captura parâmetros UTM da URL
+const getUTMParams = () => {
+  const params = new URLSearchParams(window.location.search);
+  // Se tem fbclid mas não tem utm_source, considera como facebook
+  const fbclid = params.get('fbclid');
+  const utmSource = params.get('utm_source') || (fbclid ? 'facebook' : null);
+  
+  return {
+    utmSource: utmSource,
+    utmMedium: params.get('utm_medium') || null,
+    utmCampaign: params.get('utm_campaign') || null,
+    utmTerm: params.get('utm_term') || null,
+    utmContent: params.get('utm_content') || null,
+    referrer: document.referrer || null,
+    fbclid: fbclid, // Facebook Click ID
+  };
+};
+
+// Armazena UTM params na sessão (para usar em todos os eventos)
+const utmData = getUTMParams();
+sessionStorage.setItem('quiz_utm_data', JSON.stringify(utmData));
+
+// Função para obter IP e localização (chama API externa)
+let userLocation: { ip?: string; country?: string; city?: string } | null = null;
+
+const fetchUserLocation = async () => {
+  if (userLocation) return userLocation; // Cache
+  
+  try {
+    // Usa API gratuita para obter IP e localização
+    const response = await fetch('https://ipapi.co/json/');
+    const data = await response.json();
+    
+    userLocation = {
+      ip: data.ip,
+      country: data.country_name || data.country,
+      city: data.city,
+    };
+    
+    return userLocation;
+  } catch (e) {
+    console.warn('Erro ao obter localização:', e);
+    // Fallback: tenta outra API
+    try {
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      userLocation = { ip: data.ip };
+      return userLocation;
+    } catch (e2) {
+      return null;
+    }
+  }
+};
+
+// Carrega localização uma vez quando a sessão começa
+fetchUserLocation().then(location => {
+  if (location) {
+    sessionStorage.setItem('quiz_location', JSON.stringify(location));
+  }
+});
 
 // Declaração global do Meta Pixel
 declare global {
@@ -69,6 +140,12 @@ const trackToSupabase = async (event: TrackingEvent) => {
   try {
     const { supabase } = await import('./supabaseClient');
     
+    // Obtém dados de localização e UTM da sessão
+    const storedLocation = sessionStorage.getItem('quiz_location');
+    const storedUTM = sessionStorage.getItem('quiz_utm_data');
+    const location = storedLocation ? JSON.parse(storedLocation) : null;
+    const utm = storedUTM ? JSON.parse(storedUTM) : null;
+    
     const { error } = await supabase.from('tracking_events').insert({
       event_type: event.eventType,
       block_id: event.blockId,
@@ -80,6 +157,16 @@ const trackToSupabase = async (event: TrackingEvent) => {
       vitality_score: event.vitalityScore || null,
       timestamp: event.timestamp,
       session_id: event.sessionId,
+      // Novos campos
+      ip_address: location?.ip || event.ipAddress || null,
+      country: location?.country || event.country || null,
+      city: location?.city || event.city || null,
+      utm_source: utm?.utmSource || event.utmSource || null,
+      utm_medium: utm?.utmMedium || event.utmMedium || null,
+      utm_campaign: utm?.utmCampaign || event.utmCampaign || null,
+      utm_term: utm?.utmTerm || event.utmTerm || null,
+      utm_content: utm?.utmContent || event.utmContent || null,
+      referrer: utm?.referrer || event.referrer || null,
     });
 
     if (error) {

@@ -11,6 +11,16 @@ CREATE TABLE IF NOT EXISTS tracking_events (
   vitality_score INTEGER,
   timestamp BIGINT NOT NULL,
   session_id TEXT NOT NULL,
+  -- Novos campos para rastreamento avançado
+  ip_address TEXT,
+  country TEXT,
+  city TEXT,
+  utm_source TEXT,
+  utm_medium TEXT,
+  utm_campaign TEXT,
+  utm_term TEXT,
+  utm_content TEXT,
+  referrer TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -14,6 +14,16 @@ interface TrackingEvent {
   vitalityScore?: number;
   timestamp: number;
   sessionId: string;
+  // Novos campos
+  ipAddress?: string;
+  country?: string;
+  city?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmTerm?: string;
+  utmContent?: string;
+  referrer?: string;
 }
 
 interface SessionData {
@@ -26,6 +36,14 @@ interface SessionData {
   vitalityScore: number;
   abandonedAt?: number;
   reachedCheckout: boolean;
+  // Novos campos de rastreamento
+  ipAddress?: string;
+  country?: string;
+  city?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  referrer?: string;
 }
 
 const Dashboard: React.FC = () => {
@@ -74,6 +92,16 @@ const Dashboard: React.FC = () => {
             vitalityScore: e.vitality_score,
             timestamp: e.timestamp,
             sessionId: e.session_id,
+            // Novos campos
+            ipAddress: e.ip_address,
+            country: e.country,
+            city: e.city,
+            utmSource: e.utm_source,
+            utmMedium: e.utm_medium,
+            utmCampaign: e.utm_campaign,
+            utmTerm: e.utm_term,
+            utmContent: e.utm_content,
+            referrer: e.referrer,
           }));
 
           setEvents(convertedEvents);
@@ -112,6 +140,14 @@ const Dashboard: React.FC = () => {
               finalProgress: 0,
               vitalityScore: 0,
               reachedCheckout: false,
+              // Novos campos de rastreamento (pega do primeiro evento da sessão)
+              ipAddress: event.ipAddress,
+              country: event.country,
+              city: event.city,
+              utmSource: event.utmSource,
+              utmMedium: event.utmMedium,
+              utmCampaign: event.utmCampaign,
+              referrer: event.referrer,
             });
           }
           
@@ -214,6 +250,8 @@ const Dashboard: React.FC = () => {
     if (filters.dateTo && session.firstSeen > new Date(filters.dateTo + 'T23:59:59').getTime()) return false;
     if (filters.minProgress && session.finalProgress < parseInt(filters.minProgress)) return false;
     if (filters.hasCheckout !== null && session.reachedCheckout !== filters.hasCheckout) return false;
+    if (filters.utmSource && session.utmSource !== filters.utmSource) return false;
+    if (filters.country && session.country !== filters.country) return false;
     return true;
   });
 
@@ -531,7 +569,7 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="mt-3 flex justify-end">
               <button
-                onClick={() => setFilters({ sessionId: '', dateFrom: '', dateTo: '', minProgress: '', hasCheckout: null })}
+                onClick={() => setFilters({ sessionId: '', dateFrom: '', dateTo: '', minProgress: '', hasCheckout: null, utmSource: undefined, country: undefined })}
                 className="px-4 py-1 text-sm text-gray-400 hover:text-white underline"
               >
                 Limpar Filtros
@@ -554,6 +592,8 @@ const Dashboard: React.FC = () => {
                   <th className="text-left p-3">Sessão</th>
                   <th className="text-left p-3">Primeira Visita</th>
                   <th className="text-left p-3">Última Visita</th>
+                  <th className="text-left p-3">Origem</th>
+                  <th className="text-left p-3">Localização</th>
                   <th className="text-left p-3">Progresso</th>
                   <th className="text-left p-3">Score</th>
                   <th className="text-left p-3">Blocos Visitados</th>
@@ -575,6 +615,42 @@ const Dashboard: React.FC = () => {
                     <td className="p-3 font-mono text-xs">{session.sessionId.slice(-8)}</td>
                     <td className="p-3 text-gray-400">{formatDate(session.firstSeen)}</td>
                     <td className="p-3 text-gray-400">{formatDate(session.lastSeen)}</td>
+                    <td className="p-3">
+                      <div className="flex flex-col gap-1">
+                        {session.utmSource && (
+                          <div className="text-xs">
+                            <span className="text-blue-400 font-semibold">{session.utmSource}</span>
+                            {session.utmCampaign && (
+                              <span className="text-gray-500"> - {session.utmCampaign}</span>
+                            )}
+                          </div>
+                        )}
+                        {session.referrer && (
+                          <div className="text-xs text-gray-500 truncate max-w-[150px]" title={session.referrer}>
+                            {new URL(session.referrer).hostname}
+                          </div>
+                        )}
+                        {!session.utmSource && !session.referrer && (
+                          <span className="text-gray-600 text-xs">Direto</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex flex-col gap-1 text-xs">
+                        {session.country && (
+                          <span className="text-white font-medium">{session.country}</span>
+                        )}
+                        {session.city && (
+                          <span className="text-gray-400">{session.city}</span>
+                        )}
+                        {session.ipAddress && (
+                          <span className="text-gray-500 font-mono text-[10px]">{session.ipAddress}</span>
+                        )}
+                        {!session.country && !session.city && (
+                          <span className="text-gray-600">—</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         <div className="w-24 bg-gray-600 rounded-full h-2">
@@ -625,7 +701,7 @@ const Dashboard: React.FC = () => {
                 ))}
                 {filteredSessions.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="p-6 text-center text-gray-400">
+                    <td colSpan={11} className="p-6 text-center text-gray-400">
                       {sessions.length === 0 
                         ? 'Nenhuma sessão registrada ainda. As sessões aparecerão aqui quando usuários interagirem com o quiz.'
                         : 'Nenhuma sessão encontrada com os filtros aplicados.'}
