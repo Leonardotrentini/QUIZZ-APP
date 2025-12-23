@@ -149,44 +149,6 @@ const getUTMParams = () => {
 const utmData = getUTMParams();
 sessionStorage.setItem('quiz_utm_data', JSON.stringify(utmData));
 
-// Função para obter IP e localização (chama API externa)
-let userLocation: { ip?: string; country?: string; city?: string } | null = null;
-
-const fetchUserLocation = async () => {
-  if (userLocation) return userLocation; // Cache
-  
-  try {
-    // Usa API gratuita para obter IP e localização
-    const response = await fetch('https://ipapi.co/json/');
-    const data = await response.json();
-    
-    userLocation = {
-      ip: data.ip,
-      country: data.country_name || data.country,
-      city: data.city,
-    };
-    
-    return userLocation;
-  } catch (e) {
-    console.warn('Erro ao obter localização:', e);
-    // Fallback: tenta outra API
-    try {
-      const response = await fetch('https://api.ipify.org?format=json');
-      const data = await response.json();
-      userLocation = { ip: data.ip };
-      return userLocation;
-    } catch (e2) {
-      return null;
-    }
-  }
-};
-
-// Carrega localização uma vez quando a sessão começa
-fetchUserLocation().then(location => {
-  if (location) {
-    sessionStorage.setItem('quiz_location', JSON.stringify(location));
-  }
-});
 
 // Declaração global do Meta Pixel
 declare global {
@@ -282,8 +244,11 @@ const trackToBackend = async (event: TrackingEvent) => {
 };
 
 // Tracking principal - rastreia visualização de bloco
-export const trackBlockView = (blockId: number, blockType: string, blockTitle?: string, totalBlocks: number = 21) => {
+export const trackBlockView = async (blockId: number, blockType: string, blockTitle?: string, totalBlocks: number = 21) => {
   const progress = Math.round(((blockId / totalBlocks) * 100));
+  
+  // Garante que temos o sessionId correto baseado no IP
+  const currentSessionId = await getSessionId();
   
   const event: TrackingEvent = {
     eventType: 'block_view',
@@ -292,7 +257,7 @@ export const trackBlockView = (blockId: number, blockType: string, blockTitle?: 
     blockTitle,
     progress,
     timestamp: Date.now(),
-    sessionId,
+    sessionId: currentSessionId,
     userAgent: navigator.userAgent,
   };
 
@@ -309,7 +274,7 @@ export const trackBlockView = (blockId: number, blockType: string, blockTitle?: 
 };
 
 // Tracking de resposta selecionada
-export const trackAnswerSelected = (
+export const trackAnswerSelected = async (
   blockId: number,
   blockType: string,
   answerId: string | number,
@@ -318,6 +283,9 @@ export const trackAnswerSelected = (
   totalBlocks: number = 21
 ) => {
   const progress = Math.round(((blockId / totalBlocks) * 100));
+  
+  // Garante que temos o sessionId correto baseado no IP
+  const currentSessionId = await getSessionId();
   
   const event: TrackingEvent = {
     eventType: 'answer_selected',
@@ -328,7 +296,7 @@ export const trackAnswerSelected = (
     progress,
     vitalityScore,
     timestamp: Date.now(),
-    sessionId,
+    sessionId: currentSessionId,
   };
 
   // Meta Pixel
@@ -344,13 +312,16 @@ export const trackAnswerSelected = (
 };
 
 // Tracking de conclusão de bloco
-export const trackBlockCompleted = (
+export const trackBlockCompleted = async (
   blockId: number,
   blockType: string,
   vitalityScore?: number,
   totalBlocks: number = 21
 ) => {
   const progress = Math.round(((blockId / totalBlocks) * 100));
+  
+  // Garante que temos o sessionId correto baseado no IP
+  const currentSessionId = await getSessionId();
   
   const event: TrackingEvent = {
     eventType: 'block_completed',
@@ -359,7 +330,7 @@ export const trackBlockCompleted = (
     progress,
     vitalityScore,
     timestamp: Date.now(),
-    sessionId,
+    sessionId: currentSessionId,
   };
 
   trackMetaPixel('BlockCompleted', {
@@ -372,7 +343,10 @@ export const trackBlockCompleted = (
 };
 
 // Tracking de clique no checkout
-export const trackCheckoutClick = (vitalityScore: number, finalBlockId: number) => {
+export const trackCheckoutClick = async (vitalityScore: number, finalBlockId: number) => {
+  // Garante que temos o sessionId correto baseado no IP
+  const currentSessionId = await getSessionId();
+  
   const event: TrackingEvent = {
     eventType: 'checkout_click',
     blockId: finalBlockId,
@@ -380,7 +354,7 @@ export const trackCheckoutClick = (vitalityScore: number, finalBlockId: number) 
     progress: 100,
     vitalityScore,
     timestamp: Date.now(),
-    sessionId,
+    sessionId: currentSessionId,
   };
 
   // Meta Pixel - evento de conversão importante
@@ -401,8 +375,11 @@ export const trackCheckoutClick = (vitalityScore: number, finalBlockId: number) 
 };
 
 // Tracking de abandono (quando o usuário sai)
-export const trackPageAbandon = (blockId: number, blockType: string, totalBlocks: number = 21) => {
+export const trackPageAbandon = async (blockId: number, blockType: string, totalBlocks: number = 21) => {
   const progress = Math.round(((blockId / totalBlocks) * 100));
+  
+  // Garante que temos o sessionId correto baseado no IP
+  const currentSessionId = await getSessionId();
   
   const event: TrackingEvent = {
     eventType: 'page_abandon',
@@ -410,7 +387,7 @@ export const trackPageAbandon = (blockId: number, blockType: string, totalBlocks
     blockType,
     progress,
     timestamp: Date.now(),
-    sessionId,
+    sessionId: currentSessionId,
   };
 
   // Usa beacon API para garantir envio mesmo ao sair

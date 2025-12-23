@@ -506,7 +506,7 @@ const App: React.FC = () => {
   // Tracking: Rastreia visualização de cada bloco
   useEffect(() => {
     if (currentBlock) {
-      trackBlockView(currentBlock.id, currentBlock.type, currentBlock.title, totalSteps);
+      trackBlockView(currentBlock.id, currentBlock.type, currentBlock.title, totalSteps).catch(() => {});
     }
   }, [currentBlockIndex, currentBlock, totalSteps]);
 
@@ -547,7 +547,7 @@ const App: React.FC = () => {
       answerText,
       vitalityScore + 150, // score após adicionar pontos
       totalSteps
-    );
+    ).catch(() => {});
     
     // Milestone Detection Logic
     let milestoneMsg = "";
@@ -563,7 +563,7 @@ const App: React.FC = () => {
       setFeedback(feedbackMsg);
     } else {
       // Tracking: Bloco completado antes de avançar
-      trackBlockCompleted(currentBlock.id, currentBlock.type, vitalityScore + 150, totalSteps);
+      trackBlockCompleted(currentBlock.id, currentBlock.type, vitalityScore + 150, totalSteps).catch(() => {});
       handleNext();
     }
   };
@@ -932,7 +932,7 @@ const App: React.FC = () => {
                       onClick={() => {
                         playSFX('click');
                         // Tracking: Clique no checkout
-                        trackCheckoutClick(vitalityScore, currentBlock.id);
+                        trackCheckoutClick(vitalityScore, currentBlock.id).catch(() => {});
                       }}
                       className="group relative w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-pink-600 to-rose-500 p-1 shadow-[0_15px_35px_rgba(219,39,119,0.4)] transition-all duration-300 hover:scale-[1.03] active:scale-95 animate-pulse-slow text-center block"
                     >
