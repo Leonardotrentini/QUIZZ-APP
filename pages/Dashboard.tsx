@@ -257,18 +257,22 @@ const Dashboard: React.FC = () => {
 
   // Função para deletar sessão
   const deleteSession = async (sessionId: string) => {
-    if (!confirm(`Tem certeza que deseja deletar a sessão ${sessionId.slice(-8)}?`)) return;
+    if (!window.confirm(`Tem certeza que deseja deletar a sessão ${sessionId.slice(-8)}?`)) return;
 
     try {
       // Deleta do Supabase
-      const { error } = await supabase
+      const { error, count } = await supabase
         .from('tracking_events')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('session_id', sessionId);
 
       if (error) {
         console.error('Erro ao deletar do Supabase:', error);
+        alert(`Erro ao deletar: ${error.message}`);
+        return;
       }
+
+      console.log(`Deletados ${count} eventos da sessão ${sessionId}`);
 
       // Deleta do localStorage também
       const storedEvents = localStorage.getItem('tracking_events');
@@ -278,34 +282,46 @@ const Dashboard: React.FC = () => {
         localStorage.setItem('tracking_events', JSON.stringify(filteredEvents));
       }
 
+      // Remove da lista de sessões selecionadas se estiver selecionada
+      const newSelected = new Set(selectedSessions);
+      newSelected.delete(sessionId);
+      setSelectedSessions(newSelected);
+
       // Recarrega os dados
-      loadData();
+      await loadData();
     } catch (e) {
       console.error('Erro ao deletar sessão:', e);
-      alert('Erro ao deletar sessão');
+      alert(`Erro ao deletar sessão: ${e}`);
     }
   };
 
   // Função para deletar múltiplas sessões
   const deleteSelectedSessions = async () => {
     if (selectedSessions.size === 0) {
-      alert('Selecione pelo menos uma sessão para deletar');
+      window.alert('Selecione pelo menos uma sessão para deletar');
       return;
     }
 
-    if (!confirm(`Tem certeza que deseja deletar ${selectedSessions.size} sessão(ões)?`)) return;
+    if (!window.confirm(`Tem certeza que deseja deletar ${selectedSessions.size} sessão(ões)?`)) return;
 
     try {
       const sessionIds = Array.from(selectedSessions);
+      let deletedCount = 0;
+      let errorCount = 0;
       
       // Deleta do Supabase
       for (const sessionId of sessionIds) {
-        const { error } = await supabase
+        const { error, count } = await supabase
           .from('tracking_events')
-          .delete()
+          .delete({ count: 'exact' })
           .eq('session_id', sessionId);
         
-        if (error) console.error(`Erro ao deletar sessão ${sessionId}:`, error);
+        if (error) {
+          console.error(`Erro ao deletar sessão ${sessionId}:`, error);
+          errorCount++;
+        } else {
+          deletedCount += count || 0;
+        }
       }
 
       // Deleta do localStorage
@@ -317,10 +333,15 @@ const Dashboard: React.FC = () => {
       }
 
       setSelectedSessions(new Set());
-      loadData();
+      
+      if (errorCount > 0) {
+        alert(`Algumas sessões não puderam ser deletadas. ${deletedCount} eventos deletados, ${errorCount} erros.`);
+      }
+      
+      await loadData();
     } catch (e) {
       console.error('Erro ao deletar sessões:', e);
-      alert('Erro ao deletar sessões');
+      alert(`Erro ao deletar sessões: ${e}`);
     }
   };
 
@@ -638,9 +659,9 @@ const Dashboard: React.FC = () => {
                     <td className="p-3">
                       <div className="flex flex-col gap-1 text-xs">
                         {session.country && (
-                          <span className="text-white font-medium">{session.country}</span>
+                          <span className="text-blue-400 font-bold text-sm">{session.country}</span>
                         )}
-                        {session.city && (
+                        {session.city && session.country && (
                           <span className="text-gray-400">{session.city}</span>
                         )}
                         {session.ipAddress && (
