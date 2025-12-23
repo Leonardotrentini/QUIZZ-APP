@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Performance - FCP</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .results {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .metric {
+            margin: 15px 0;
+            padding: 10px;
+            background: #f9f9f9;
+            border-left: 4px solid #007bff;
+        }
+        .metric strong {
+            display: inline-block;
+            width: 200px;
+        }
+        .good { border-left-color: #28a745; }
+        .medium { border-left-color: #ffc107; }
+        .bad { border-left-color: #dc3545; }
+        h1 { color: #333; }
+        .status {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .status.excellent { background: #d4edda; color: #155724; }
+        .status.good { background: #fff3cd; color: #856404; }
+        .status.needs-improvement { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="results">
+        <h1>🚀 Teste de Performance - First Contentful Paint</h1>
+        <p>Testando: <strong>http://localhost:3000</strong></p>
+        <div id="metrics"></div>
+    </div>
+
+    <script>
+        // Redireciona para a página de teste e volta para medir
+        function measureFCP() {
+            const metrics = {
+                firstPaint: null,
+                firstContentfulPaint: null,
+                domContentLoaded: null,
+                loadTime: null,
+                totalTime: null,
+                domReady: null
+            };
+
+            // Tenta obter métricas se já estiverem disponíveis
+            if (window.performance && window.performance.getEntriesByType) {
+                const paintMetrics = window.performance.getEntriesByType('paint');
+                const fcp = paintMetrics.find(entry => entry.name === 'first-contentful-paint');
+                const fp = paintMetrics.find(entry => entry.name === 'first-paint');
+                
+                if (fp) metrics.firstPaint = Math.round(fp.startTime);
+                if (fcp) metrics.firstContentfulPaint = Math.round(fcp.startTime);
+
+                const navigation = performance.getEntriesByType('navigation')[0];
+                if (navigation) {
+                    metrics.domContentLoaded = Math.round(navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart);
+                    metrics.loadTime = Math.round(navigation.loadEventEnd - navigation.loadEventStart);
+                    metrics.totalTime = Math.round(navigation.loadEventEnd - navigation.fetchStart);
+                    metrics.domReady = Math.round(navigation.domContentLoadedEventEnd - navigation.fetchStart);
+                }
+            }
+
+            return metrics;
+        }
+
+        // Aguarda um pouco para garantir que as métricas estejam disponíveis
+        setTimeout(() => {
+            const metrics = measureFCP();
+            displayResults(metrics);
+        }, 1000);
+    </script>
+
+    <script>
+        function displayResults(metrics) {
+            const container = document.getElementById('metrics');
+            let html = '';
+
+            if (metrics.firstPaint !== null) {
+                html += `<div class="metric ${getColorClass(metrics.firstPaint, 1800, 3000)}">
+                    <strong>First Paint:</strong> ${metrics.firstPaint}ms
+                </div>`;
+            }
+
+            if (metrics.firstContentfulPaint !== null) {
+                html += `<div class="metric ${getColorClass(metrics.firstContentfulPaint, 1800, 3000)}">
+                    <strong>First Contentful Paint:</strong> ${metrics.firstContentfulPaint}ms
+                </div>`;
+            }
+
+            if (metrics.domReady !== null) {
+                html += `<div class="metric">
+                    <strong>DOM Ready:</strong> ${metrics.domReady}ms
+                </div>`;
+            }
+
+            if (metrics.totalTime !== null) {
+                html += `<div class="metric">
+                    <strong>Total Load Time:</strong> ${metrics.totalTime}ms
+                </div>`;
+            }
+
+            if (metrics.firstContentfulPaint !== null) {
+                let statusClass = 'needs-improvement';
+                let statusText = '⚠️ Pode melhorar (FCP > 3s)';
+                
+                if (metrics.firstContentfulPaint < 1800) {
+                    statusClass = 'excellent';
+                    statusText = '✅ EXCELENTE! FCP < 1.8s (Boa experiência)';
+                } else if (metrics.firstContentfulPaint < 3000) {
+                    statusClass = 'good';
+                    statusText = '✅ BOM! FCP < 3s (Aceitável)';
+                }
+
+                html += `<div class="status ${statusClass}">${statusText}</div>`;
+            } else {
+                html += `<div class="status needs-improvement">
+                    ⚠️ Métricas não disponíveis. Abra o DevTools (F12) e execute:<br>
+                    <code>performance.getEntriesByType('paint')</code>
+                </div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function getColorClass(value, good, medium) {
+            if (value < good) return 'good';
+            if (value < medium) return 'medium';
+            return 'bad';
+        }
+    </script>
+</body>
+</html>
+

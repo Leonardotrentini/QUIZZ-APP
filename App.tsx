@@ -89,14 +89,46 @@ const ensureWistiaAssets = (() => {
 
 const WistiaEmbed: React.FC = () => {
   const ref = useRef<HTMLDivElement>(null);
+  const [shouldLoad, setShouldLoad] = React.useState(false);
 
+  // OTIMIZAÇÃO: Carrega Wistia apenas quando o componente estiver visível ou após delay
   useEffect(() => {
-    ensureWistiaAssets();
-  }, []);
+    // Delay de 500ms para não bloquear renderização inicial
+    const timer = setTimeout(() => {
+      setShouldLoad(true);
+      ensureWistiaAssets();
+    }, 500);
+
+    // Ou carrega se o usuário interagir (scroll, hover, etc)
+    const handleInteraction = () => {
+      if (!shouldLoad) {
+        clearTimeout(timer);
+        setShouldLoad(true);
+        ensureWistiaAssets();
+      }
+    };
+
+    window.addEventListener('scroll', handleInteraction, { once: true });
+    window.addEventListener('mousemove', handleInteraction, { once: true });
+    window.addEventListener('touchstart', handleInteraction, { once: true });
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('scroll', handleInteraction);
+      window.removeEventListener('mousemove', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+    };
+  }, [shouldLoad]);
 
   return (
     <div ref={ref} className="relative w-full aspect-video bg-gray-900 rounded-[2.5rem] overflow-hidden shadow-2xl border-[6px] border-white">
-      <wistia-player media-id={WISTIA_MEDIA_ID} seo="false" aspect="1.7712177121771218" style={{ width: '100%', height: '100%', display: 'block' }} />
+      {shouldLoad ? (
+        <wistia-player media-id={WISTIA_MEDIA_ID} seo="false" aspect="1.7712177121771218" style={{ width: '100%', height: '100%', display: 'block' }} />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center bg-gray-900">
+          <div className="text-white text-lg">Carregando vídeo...</div>
+        </div>
+      )}
     </div>
   );
 };

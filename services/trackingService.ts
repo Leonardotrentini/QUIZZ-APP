@@ -73,59 +73,46 @@ const fetchUserLocation = async (): Promise<{ ip?: string; country?: string; cit
 };
 
 // Gera um ID único para a sessão baseado no IP
+// OTIMIZAÇÃO: Gera ID temporário primeiro, atualiza com IP depois (não bloqueia carregamento)
 const getSessionId = async (): Promise<string> => {
   const stored = sessionStorage.getItem('quiz_session_id');
   if (stored) return stored;
   
-  // Tenta obter o IP primeiro
-  const location = await fetchUserLocation();
+  // OTIMIZAÇÃO: Gera ID temporário imediatamente (não bloqueia)
+  const tempId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  sessionStorage.setItem('quiz_session_id', tempId);
   
-  if (location?.ip) {
-    // Cria sessionId baseado no IP (mais um hash para garantir unicidade)
-    const ipHash = location.ip.split('.').join('_');
-    const newId = `ip_${ipHash}`;
-    sessionStorage.setItem('quiz_session_id', newId);
-    return newId;
-  }
+  // Carrega IP em background (não bloqueia renderização)
+  fetchUserLocation().then(location => {
+    if (location?.ip) {
+      const ipHash = location.ip.split('.').join('_');
+      const ipBasedId = `ip_${ipHash}`;
+      sessionStorage.setItem('quiz_session_id', ipBasedId);
+      
+      // Migra eventos temporários para o ID baseado em IP
+      try {
+        const storedEvents = localStorage.getItem('tracking_events');
+        if (storedEvents) {
+          const events: TrackingEvent[] = JSON.parse(storedEvents);
+          events.forEach(event => {
+            if (event.sessionId === tempId) {
+              event.sessionId = ipBasedId;
+            }
+          });
+          localStorage.setItem('tracking_events', JSON.stringify(events));
+        }
+      } catch (e) {
+        console.warn('Erro ao migrar eventos:', e);
+      }
+    }
+  }).catch(() => {
+    // Se falhar, mantém o ID temporário
+  });
   
-  // Fallback: se não conseguiu IP, usa método tradicional mas com identificador único
-  // Isso pode acontecer se a API estiver lenta ou falhar
-  const fallbackId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  sessionStorage.setItem('quiz_session_id', fallbackId);
-  return fallbackId;
+  return tempId; // Retorna imediatamente, não espera IP
 };
 
-// Gera sessionId de forma síncrona para uso inicial (será atualizado quando IP estiver disponível)
-let sessionId = `session_temp_${Date.now()}`;
-
-// Carrega sessionId baseado em IP quando disponível
-(async () => {
-  const id = await getSessionId();
-  sessionId = id;
-  sessionStorage.setItem('quiz_session_id', id);
-  
-  // Se mudou, tenta migrar eventos locais para o novo ID
-  const storedEvents = localStorage.getItem('tracking_events');
-  if (storedEvents && id.startsWith('ip_')) {
-    try {
-      const events: TrackingEvent[] = JSON.parse(storedEvents);
-      const tempId = `session_temp_${Date.now()}`;
-      // Se encontrar eventos com ID temporário recente (últimos 5 minutos), migra
-      const recentTempEvents = events.filter(e => 
-        e.sessionId.startsWith('session_temp_') && 
-        Date.now() - parseInt(e.sessionId.split('_')[2]) < 5 * 60 * 1000
-      );
-      if (recentTempEvents.length > 0) {
-        recentTempEvents.forEach(event => {
-          event.sessionId = id;
-        });
-        localStorage.setItem('tracking_events', JSON.stringify(events));
-      }
-    } catch (e) {
-      console.warn('Erro ao migrar eventos:', e);
-    }
-  }
-})();
+// OTIMIZAÇÃO: Removido bloqueio inicial - sessionId será gerado quando necessário via getSessionId()
 
 // Captura parâmetros UTM da URL
 const getUTMParams = () => {

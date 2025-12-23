@@ -19,8 +19,23 @@
       fbq('track', 'PageView');
     </script>
     <!-- End Meta Pixel Code -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+    <!-- OTIMIZAÇÃO: Tailwind CSS carregado após DOM estar pronto (não bloqueia renderização) -->
+    <script>
+      // Carrega Tailwind após a página renderizar
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.tailwindcss.com';
+          document.head.appendChild(script);
+        });
+      } else {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.tailwindcss.com';
+        document.head.appendChild(script);
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet"></noscript>
     <style>
         body { font-family: 'Inter', sans-serif; }
         h1, h2, h3 { font-family: 'Montserrat', sans-serif; }
