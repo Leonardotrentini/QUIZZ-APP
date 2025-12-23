@@ -1,0 +1,27 @@
+⚠️ INSTRUÇÕES PARA HABILITAR O DASHBOARD ⚠️
+
+Para habilitar o acesso ao dashboard temporariamente:
+
+1. No arquivo App.tsx, linha ~4, DESCOMENTE:
+   // import Dashboard from './pages/Dashboard';
+   
+   Para:
+   import Dashboard from './pages/Dashboard';
+
+2. No arquivo App.tsx, antes do return principal (~linha 970), DESCOMENTE:
+   // if (window.location.hash === '#dashboard') {
+   //   const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+   //   return <React.Suspense fallback={<div>Carregando...</div>}><Dashboard /></React.Suspense>;
+   // }
+   
+   Para:
+   if (window.location.hash === '#dashboard') {
+     return <Dashboard />;
+   }
+
+3. Acesse: http://localhost:5173/#dashboard
+
+4. Quando terminar de testar, COMENTE novamente para não afetar produção.
+
+⚠️ LEMBRE-SE: Este é apenas para desenvolvimento! Não faça commit com essas linhas descomentadas se não quiser o dashboard em produção.
+

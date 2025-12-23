@@ -3,6 +3,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FUNNEL_BLOCKS } from './content/funnelData';
 import { UserAnswers, FunnelBlock } from './types';
 import { getPersonalizedAnalysis } from './services/geminiService';
+import { trackBlockView, trackAnswerSelected, trackBlockCompleted, trackCheckoutClick, trackPageAbandon } from './services/trackingService';
+// Dashboard - Acesse via #dashboard na URL
+import Dashboard from './pages/Dashboard';
 
 declare global {
   namespace JSX {
@@ -499,6 +502,23 @@ const App: React.FC = () => {
   const totalSteps = FUNNEL_BLOCKS.length;
 
   useEffect(() => { localStorage.setItem('funnel_image_adjustments', JSON.stringify(editorState)); }, [editorState]);
+
+  // Tracking: Rastreia visualização de cada bloco
+  useEffect(() => {
+    if (currentBlock) {
+      trackBlockView(currentBlock.id, currentBlock.type, currentBlock.title, totalSteps);
+    }
+  }, [currentBlockIndex, currentBlock, totalSteps]);
+
+  // Tracking: Rastreia abandono da página (beforeunload)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      trackPageAbandon(currentBlock.id, currentBlock.type, totalSteps);
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [currentBlockIndex, currentBlock, totalSteps]);
   const updateAdjustment = (blockId: number, adj: ImageAdjustment) => { setEditorState(prev => ({ ...prev, [blockId]: adj })); };
   const getAdj = (blockId: number): ImageAdjustment => editorState[blockId] || { x: 0, y: 0, scale: 1 };
   const handleNext = useCallback(() => { if (currentBlockIndex < totalSteps - 1) setCurrentBlockIndex(prev => prev + 1); }, [currentBlockIndex, totalSteps]);
@@ -518,6 +538,17 @@ const App: React.FC = () => {
     setAnswers(prev => ({ ...prev, [currentBlock.id]: value }));
     addVitalityPoints(150);
     
+    // Tracking: Rastreia resposta selecionada
+    const answerText = currentBlock.alternatives?.find(alt => alt.id === value)?.text;
+    trackAnswerSelected(
+      currentBlock.id,
+      currentBlock.type,
+      value,
+      answerText,
+      vitalityScore + 150, // score após adicionar pontos
+      totalSteps
+    );
+    
     // Milestone Detection Logic
     let milestoneMsg = "";
     if (currentBlockIndex === 5) milestoneMsg = "¡Tu compromiso está por encima del 85% de las candidatas!";
@@ -531,6 +562,8 @@ const App: React.FC = () => {
       setIsMilestone(false);
       setFeedback(feedbackMsg);
     } else {
+      // Tracking: Bloco completado antes de avançar
+      trackBlockCompleted(currentBlock.id, currentBlock.type, vitalityScore + 150, totalSteps);
       handleNext();
     }
   };
@@ -896,7 +929,11 @@ const App: React.FC = () => {
                       href="https://pay.hotmart.com/O103512181Y"
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={() => playSFX('click')}
+                      onClick={() => {
+                        playSFX('click');
+                        // Tracking: Clique no checkout
+                        trackCheckoutClick(vitalityScore, currentBlock.id);
+                      }}
                       className="group relative w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-pink-600 to-rose-500 p-1 shadow-[0_15px_35px_rgba(219,39,119,0.4)] transition-all duration-300 hover:scale-[1.03] active:scale-95 animate-pulse-slow text-center block"
                     >
                       {/* Shimmer Effect */}
@@ -930,6 +967,11 @@ const App: React.FC = () => {
         return <div>Fin del Embudo</div>;
     }
   };
+
+  // Dashboard - Acesse via #dashboard na URL (ex: http://localhost:5173/#dashboard)
+  if (window.location.hash === '#dashboard') {
+    return <Dashboard />;
+  }
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10 relative">
