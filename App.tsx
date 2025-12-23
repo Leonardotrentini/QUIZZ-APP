@@ -513,7 +513,7 @@ const App: React.FC = () => {
   // Tracking: Rastreia abandono da página (beforeunload)
   useEffect(() => {
     const handleBeforeUnload = () => {
-      trackPageAbandon(currentBlock.id, currentBlock.type, totalSteps);
+      trackPageAbandon(currentBlock.id, currentBlock.type, totalSteps).catch(() => {});
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
