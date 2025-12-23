@@ -475,8 +475,12 @@ const PremiumRoulette: React.FC<{
 
 const App: React.FC = () => {
   // Dashboard - Verifica hash PRIMEIRO antes de qualquer estado
-  if (typeof window !== 'undefined' && window.location.hash === '#dashboard') {
-    return <Dashboard />;
+  // Aceita tanto #dashboard quanto #dasboard (typo comum)
+  if (typeof window !== 'undefined') {
+    const hash = window.location.hash.toLowerCase();
+    if (hash === '#dashboard' || hash === '#dasboard') {
+      return <Dashboard />;
+    }
   }
 
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
