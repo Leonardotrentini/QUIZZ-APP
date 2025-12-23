@@ -24,16 +24,108 @@ interface TrackingEvent {
   referrer?: string;
 }
 
-// Gera um ID único para a sessão
-const getSessionId = (): string => {
-  const stored = sessionStorage.getItem('quiz_session_id');
-  if (stored) return stored;
-  const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  sessionStorage.setItem('quiz_session_id', newId);
-  return newId;
+// Função para obter IP e localização (chama API externa)
+let userLocation: { ip?: string; country?: string; city?: string } | null = null;
+let locationPromise: Promise<{ ip?: string; country?: string; city?: string } | null> | null = null;
+
+const fetchUserLocation = async (): Promise<{ ip?: string; country?: string; city?: string } | null> => {
+  if (userLocation) return userLocation; // Cache
+  
+  // Se já está carregando, retorna a mesma promise
+  if (locationPromise) return locationPromise;
+  
+  locationPromise = (async () => {
+    try {
+      // Usa API gratuita para obter IP e localização
+      const response = await fetch('https://ipapi.co/json/');
+      const data = await response.json();
+      
+      userLocation = {
+        ip: data.ip,
+        country: data.country_name || data.country,
+        city: data.city,
+      };
+      
+      // Salva no sessionStorage
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('quiz_location', JSON.stringify(userLocation));
+      }
+      
+      return userLocation;
+    } catch (e) {
+      console.warn('Erro ao obter localização:', e);
+      // Fallback: tenta outra API
+      try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        userLocation = { ip: data.ip };
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('quiz_location', JSON.stringify(userLocation));
+        }
+        return userLocation;
+      } catch (e2) {
+        return null;
+      }
+    }
+  })();
+  
+  return locationPromise;
 };
 
-const sessionId = getSessionId();
+// Gera um ID único para a sessão baseado no IP
+const getSessionId = async (): Promise<string> => {
+  const stored = sessionStorage.getItem('quiz_session_id');
+  if (stored) return stored;
+  
+  // Tenta obter o IP primeiro
+  const location = await fetchUserLocation();
+  
+  if (location?.ip) {
+    // Cria sessionId baseado no IP (mais um hash para garantir unicidade)
+    const ipHash = location.ip.split('.').join('_');
+    const newId = `ip_${ipHash}`;
+    sessionStorage.setItem('quiz_session_id', newId);
+    return newId;
+  }
+  
+  // Fallback: se não conseguiu IP, usa método tradicional mas com identificador único
+  // Isso pode acontecer se a API estiver lenta ou falhar
+  const fallbackId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  sessionStorage.setItem('quiz_session_id', fallbackId);
+  return fallbackId;
+};
+
+// Gera sessionId de forma síncrona para uso inicial (será atualizado quando IP estiver disponível)
+let sessionId = `session_temp_${Date.now()}`;
+
+// Carrega sessionId baseado em IP quando disponível
+(async () => {
+  const id = await getSessionId();
+  sessionId = id;
+  sessionStorage.setItem('quiz_session_id', id);
+  
+  // Se mudou, tenta migrar eventos locais para o novo ID
+  const storedEvents = localStorage.getItem('tracking_events');
+  if (storedEvents && id.startsWith('ip_')) {
+    try {
+      const events: TrackingEvent[] = JSON.parse(storedEvents);
+      const tempId = `session_temp_${Date.now()}`;
+      // Se encontrar eventos com ID temporário recente (últimos 5 minutos), migra
+      const recentTempEvents = events.filter(e => 
+        e.sessionId.startsWith('session_temp_') && 
+        Date.now() - parseInt(e.sessionId.split('_')[2]) < 5 * 60 * 1000
+      );
+      if (recentTempEvents.length > 0) {
+        recentTempEvents.forEach(event => {
+          event.sessionId = id;
+        });
+        localStorage.setItem('tracking_events', JSON.stringify(events));
+      }
+    } catch (e) {
+      console.warn('Erro ao migrar eventos:', e);
+    }
+  }
+})();
 
 // Captura parâmetros UTM da URL
 const getUTMParams = () => {
