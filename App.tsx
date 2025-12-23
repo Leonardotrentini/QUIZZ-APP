@@ -474,6 +474,11 @@ const PremiumRoulette: React.FC<{
 // --- Main App Component ---
 
 const App: React.FC = () => {
+  // Dashboard - Verifica hash ANTES de qualquer renderização
+  if (typeof window !== 'undefined' && window.location.hash === '#dashboard') {
+    return <Dashboard />;
+  }
+
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [answers, setAnswers] = useState<UserAnswers>({});
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -967,11 +972,6 @@ const App: React.FC = () => {
         return <div>Fin del Embudo</div>;
     }
   };
-
-  // Dashboard - Acesse via #dashboard na URL (ex: http://localhost:5173/#dashboard)
-  if (window.location.hash === '#dashboard') {
-    return <Dashboard />;
-  }
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10 relative">
