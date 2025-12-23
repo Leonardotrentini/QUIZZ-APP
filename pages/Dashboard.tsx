@@ -89,11 +89,10 @@ const Dashboard: React.FC = () => {
 
   const processEvents = (eventList: TrackingEvent[]) => {
     try {
-        
         // Agrupa eventos por sessão
         const sessionsMap = new Map<string, SessionData>();
         
-        parsedEvents.forEach(event => {
+        eventList.forEach(event => {
           if (!sessionsMap.has(event.sessionId)) {
             sessionsMap.set(event.sessionId, {
               sessionId: event.sessionId,
