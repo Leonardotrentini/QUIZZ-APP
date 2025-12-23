@@ -474,6 +474,11 @@ const PremiumRoulette: React.FC<{
 // --- Main App Component ---
 
 const App: React.FC = () => {
+  // Dashboard - Verifica hash PRIMEIRO antes de qualquer estado
+  if (typeof window !== 'undefined' && window.location.hash === '#dashboard') {
+    return <Dashboard />;
+  }
+
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [answers, setAnswers] = useState<UserAnswers>({});
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -968,10 +973,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Dashboard - Verifica hash para renderizar dashboard
-  if (typeof window !== 'undefined' && window.location.hash === '#dashboard') {
-    return <Dashboard />;
-  }
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col pb-10 relative">
