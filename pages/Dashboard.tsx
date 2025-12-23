@@ -33,6 +33,15 @@ const Dashboard: React.FC = () => {
   const [events, setEvents] = useState<TrackingEvent[]>([]);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'metrics' | 'pages'>('metrics');
+  const [filters, setFilters] = useState({
+    sessionId: '',
+    dateFrom: '',
+    dateTo: '',
+    minProgress: '',
+    hasCheckout: null as boolean | null,
+  });
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
+  const [editingSession, setEditingSession] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -191,7 +200,111 @@ const Dashboard: React.FC = () => {
     return new Date(timestamp).toLocaleString('pt-BR');
   };
 
+  const formatDateInput = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return date.toISOString().split('T')[0];
+  };
+
   const selectedSessionData = sessions.find(s => s.sessionId === selectedSession);
+
+  // Funções de filtro
+  const filteredSessions = sessions.filter(session => {
+    if (filters.sessionId && !session.sessionId.includes(filters.sessionId)) return false;
+    if (filters.dateFrom && session.firstSeen < new Date(filters.dateFrom).getTime()) return false;
+    if (filters.dateTo && session.firstSeen > new Date(filters.dateTo + 'T23:59:59').getTime()) return false;
+    if (filters.minProgress && session.finalProgress < parseInt(filters.minProgress)) return false;
+    if (filters.hasCheckout !== null && session.reachedCheckout !== filters.hasCheckout) return false;
+    return true;
+  });
+
+  // Função para deletar sessão
+  const deleteSession = async (sessionId: string) => {
+    if (!confirm(`Tem certeza que deseja deletar a sessão ${sessionId.slice(-8)}?`)) return;
+
+    try {
+      // Deleta do Supabase
+      const { error } = await supabase
+        .from('tracking_events')
+        .delete()
+        .eq('session_id', sessionId);
+
+      if (error) {
+        console.error('Erro ao deletar do Supabase:', error);
+      }
+
+      // Deleta do localStorage também
+      const storedEvents = localStorage.getItem('tracking_events');
+      if (storedEvents) {
+        const parsedEvents: TrackingEvent[] = JSON.parse(storedEvents);
+        const filteredEvents = parsedEvents.filter(e => e.sessionId !== sessionId);
+        localStorage.setItem('tracking_events', JSON.stringify(filteredEvents));
+      }
+
+      // Recarrega os dados
+      loadData();
+    } catch (e) {
+      console.error('Erro ao deletar sessão:', e);
+      alert('Erro ao deletar sessão');
+    }
+  };
+
+  // Função para deletar múltiplas sessões
+  const deleteSelectedSessions = async () => {
+    if (selectedSessions.size === 0) {
+      alert('Selecione pelo menos uma sessão para deletar');
+      return;
+    }
+
+    if (!confirm(`Tem certeza que deseja deletar ${selectedSessions.size} sessão(ões)?`)) return;
+
+    try {
+      const sessionIds = Array.from(selectedSessions);
+      
+      // Deleta do Supabase
+      for (const sessionId of sessionIds) {
+        const { error } = await supabase
+          .from('tracking_events')
+          .delete()
+          .eq('session_id', sessionId);
+        
+        if (error) console.error(`Erro ao deletar sessão ${sessionId}:`, error);
+      }
+
+      // Deleta do localStorage
+      const storedEvents = localStorage.getItem('tracking_events');
+      if (storedEvents) {
+        const parsedEvents: TrackingEvent[] = JSON.parse(storedEvents);
+        const filteredEvents = parsedEvents.filter(e => !sessionIds.includes(e.sessionId));
+        localStorage.setItem('tracking_events', JSON.stringify(filteredEvents));
+      }
+
+      setSelectedSessions(new Set());
+      loadData();
+    } catch (e) {
+      console.error('Erro ao deletar sessões:', e);
+      alert('Erro ao deletar sessões');
+    }
+  };
+
+  // Função para selecionar/deselecionar sessão
+  const toggleSessionSelection = (sessionId: string) => {
+    const newSelected = new Set(selectedSessions);
+    if (newSelected.has(sessionId)) {
+      newSelected.delete(sessionId);
+    } else {
+      newSelected.add(sessionId);
+    }
+    setSelectedSessions(newSelected);
+  };
+
+  // Função para selecionar todas as sessões
+  const toggleSelectAll = () => {
+    if (selectedSessions.size === filteredSessions.length) {
+      setSelectedSessions(new Set());
+    } else {
+      setSelectedSessions(new Set(filteredSessions.map(s => s.sessionId)));
+    }
+  };
 
   // Função para obter detalhes completos de cada bloco
   const getBlockDetails = () => {
@@ -343,11 +456,101 @@ const Dashboard: React.FC = () => {
 
         {/* Tabela de Sessões */}
         <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-bold mb-4">📋 Sessões e Respostas</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold">📋 Sessões e Respostas</h2>
+            <div className="flex gap-2">
+              {selectedSessions.size > 0 && (
+                <button
+                  onClick={deleteSelectedSessions}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-semibold"
+                >
+                  🗑️ Deletar Selecionadas ({selectedSessions.size})
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Filtros */}
+          <div className="bg-gray-700 rounded-lg p-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">ID da Sessão</label>
+                <input
+                  type="text"
+                  placeholder="Buscar por ID..."
+                  value={filters.sessionId}
+                  onChange={(e) => setFilters({ ...filters, sessionId: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Data Inicial</label>
+                <input
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Data Final</label>
+                <input
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Progresso Mínimo (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="0-100"
+                  value={filters.minProgress}
+                  onChange={(e) => setFilters({ ...filters, minProgress: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Checkout</label>
+                <select
+                  value={filters.hasCheckout === null ? '' : filters.hasCheckout ? 'yes' : 'no'}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFilters({ ...filters, hasCheckout: value === '' ? null : value === 'yes' });
+                  }}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Todos</option>
+                  <option value="yes">Com Checkout</option>
+                  <option value="no">Sem Checkout</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={() => setFilters({ sessionId: '', dateFrom: '', dateTo: '', minProgress: '', hasCheckout: null })}
+                className="px-4 py-1 text-sm text-gray-400 hover:text-white underline"
+              >
+                Limpar Filtros
+              </button>
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-700">
+                  <th className="text-left p-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSessions.size === filteredSessions.length && filteredSessions.length > 0}
+                      onChange={toggleSelectAll}
+                      className="rounded"
+                    />
+                  </th>
                   <th className="text-left p-3">Sessão</th>
                   <th className="text-left p-3">Primeira Visita</th>
                   <th className="text-left p-3">Última Visita</th>
@@ -359,8 +562,16 @@ const Dashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {sessions.map((session) => (
+                {filteredSessions.map((session) => (
                   <tr key={session.sessionId} className="border-b border-gray-700 hover:bg-gray-700">
+                    <td className="p-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedSessions.has(session.sessionId)}
+                        onChange={() => toggleSessionSelection(session.sessionId)}
+                        className="rounded"
+                      />
+                    </td>
                     <td className="p-3 font-mono text-xs">{session.sessionId.slice(-8)}</td>
                     <td className="p-3 text-gray-400">{formatDate(session.firstSeen)}</td>
                     <td className="p-3 text-gray-400">{formatDate(session.lastSeen)}</td>
@@ -394,19 +605,30 @@ const Dashboard: React.FC = () => {
                       )}
                     </td>
                     <td className="p-3">
-                      <button
-                        onClick={() => setSelectedSession(selectedSession === session.sessionId ? null : session.sessionId)}
-                        className="text-blue-400 hover:text-blue-300 text-xs underline"
-                      >
-                        Ver detalhes
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedSession(selectedSession === session.sessionId ? null : session.sessionId)}
+                          className="text-blue-400 hover:text-blue-300 text-xs underline"
+                        >
+                          Ver detalhes
+                        </button>
+                        <button
+                          onClick={() => deleteSession(session.sessionId)}
+                          className="text-red-400 hover:text-red-300 text-xs underline"
+                          title="Deletar sessão"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
-                {sessions.length === 0 && (
+                {filteredSessions.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-gray-400">
-                      Nenhuma sessão registrada ainda. As sessões aparecerão aqui quando usuários interagirem com o quiz.
+                    <td colSpan={9} className="p-6 text-center text-gray-400">
+                      {sessions.length === 0 
+                        ? 'Nenhuma sessão registrada ainda. As sessões aparecerão aqui quando usuários interagirem com o quiz.'
+                        : 'Nenhuma sessão encontrada com os filtros aplicados.'}
                     </td>
                   </tr>
                 )}
@@ -484,10 +706,76 @@ const Dashboard: React.FC = () => {
           <div className="space-y-6">
             {/* Visualização por Usuário/Sessão - Todos os 21 Blocos */}
             <div className="bg-gray-800 rounded-lg p-6">
-              <h2 className="text-xl font-bold mb-4">👥 Respostas por Usuário/Sessão - Todos os 21 Blocos</h2>
-              <p className="text-gray-400 text-sm mb-6">
-                Veja exatamente onde cada pessoa clicou e onde parou em cada um dos 21 blocos do funil. Cada linha representa uma sessão/usuário único.
-              </p>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-bold">👥 Respostas por Usuário/Sessão - Todos os 21 Blocos</h2>
+                  <p className="text-gray-400 text-sm mt-2">
+                    Veja exatamente onde cada pessoa clicou e onde parou em cada um dos 21 blocos do funil. Cada linha representa uma sessão/usuário único.
+                  </p>
+                </div>
+                {selectedSessions.size > 0 && (
+                  <button
+                    onClick={deleteSelectedSessions}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-semibold"
+                  >
+                    🗑️ Deletar Selecionadas ({selectedSessions.size})
+                  </button>
+                )}
+              </div>
+
+              {/* Filtros para tabela de Páginas */}
+              <div className="bg-gray-700 rounded-lg p-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">ID da Sessão</label>
+                    <input
+                      type="text"
+                      placeholder="Buscar por ID..."
+                      value={filters.sessionId}
+                      onChange={(e) => setFilters({ ...filters, sessionId: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Data Inicial</label>
+                    <input
+                      type="date"
+                      value={filters.dateFrom}
+                      onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Data Final</label>
+                    <input
+                      type="date"
+                      value={filters.dateTo}
+                      onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Progresso Mínimo (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="0-100"
+                      value={filters.minProgress}
+                      onChange={(e) => setFilters({ ...filters, minProgress: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={() => setFilters({ sessionId: '', dateFrom: '', dateTo: '', minProgress: '', hasCheckout: null })}
+                    className="px-4 py-1 text-sm text-gray-400 hover:text-white underline"
+                  >
+                    Limpar Filtros
+                  </button>
+                </div>
+              </div>
               
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
@@ -495,7 +783,12 @@ const Dashboard: React.FC = () => {
                     <tr className="border-b-2 border-gray-700">
                       <th className="text-left p-3 bg-gray-700 sticky left-0 z-10 min-w-[140px] border-r-2 border-gray-600">
                         <div className="flex items-center gap-2">
-                          <input type="checkbox" className="rounded" />
+                          <input
+                            type="checkbox"
+                            checked={selectedSessions.size === filteredSessions.length && filteredSessions.length > 0}
+                            onChange={toggleSelectAll}
+                            className="rounded"
+                          />
                           <span>Entrada</span>
                         </div>
                       </th>
